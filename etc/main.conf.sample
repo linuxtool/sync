@@ -1,0 +1,28 @@
+[global]
+#transmothod:your backup transfer method. may be ftp,rsync,pcs.
+transmothod=ftp
+
+[log]
+#future function,current not useful
+log_level=warn
+log_format=default
+log_file=var/log/main.log
+
+[task_test]
+#"task_" is a key,add your alias after it.
+transmothod=ftp
+source=/mnt/
+target=public_html/
+servers=ftpgroup_backup
+enable=true
+
+[ftpgroup_backup]
+#"ftpgroup_" is a key ,add your alias after it.
+servers=ftpserver_01
+
+[ftpserver_01]
+#"ftpserver_" is a key ,add your alias after it.
+host=1.2.3.4
+port=21
+username=ftpuser
+password=ftppass

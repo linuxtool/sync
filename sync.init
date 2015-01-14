@@ -1,0 +1,47 @@
+#! /bin/bash
+#
+################ Script Info ################       
+
+## Program: Sync Manage Script V1.0
+## Author:  Clumart.G(翅儿学飞)
+## Date:    2015-01-14
+## Update:  2015011401 None
+
+################ Env Define ################
+
+PATH=/bin:/sbin:/usr/bin:/usr/sbin:/usr/local/bin:/usr/local/sbin:~/bin:~/sbin
+LANG=C
+export PATH
+export LANG
+
+PGNAME="sync-1.0.0"
+CWD=$(pwd)
+rc=0
+
+# See how we were called.
+case "$1" in
+    start)
+        bin/${PGNAME}.py
+        ;;
+    stop)
+        killall ${PGNAME}
+        ;;
+    status)
+        if [ `ps aux|grep ${PGNAME} |grep -v grep |wc -l` -gt 0 ]; then
+            echo "${PGNAME} is running."
+        else
+            echo "${PGNAME} is not running."
+        fi
+	    ;;
+    restart|reload|force-reload)
+        cd "$CWD"
+    	$0 stop
+    	$0 start
+	    rc=$?
+	    ;;
+    *)
+        echo $"Usage: $0 {start|stop|status|restart|reload|force-reload}"
+        exit 2
+esac
+
+exit $rc
