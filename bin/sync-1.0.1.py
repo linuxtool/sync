@@ -124,9 +124,14 @@ class BackupByFtp():
             sys.exit(1)
         
         #reconnect
-        self.f.connect(self.logininfo_host,self.logininfo_port,30)
-        self.f.login(self.logininfo_user,self.logininfo_pwd)
-        self.f.cwd("/") #go back to the root dir 
+        try:
+            self.f.connect(self.logininfo_host,self.logininfo_port,30)
+            self.f.login(self.logininfo_user,self.logininfo_pwd)
+            self.f.cwd("/") #go back to the root dir 
+        except socket.error, e :
+            print "\033[1;31m"+">>> FTP relogin time out! I'm still trying ..."+"\033[0m"
+        else:
+            print "\033[01;32m"+">>> FTP relogin sucessful."+"\033[0m"
         
     def upload(self, lf="./", rf="./"):
         '''upload file to ftp server.'''
