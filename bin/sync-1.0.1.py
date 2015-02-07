@@ -11,6 +11,7 @@ import os
 import sys
 import string
 import re
+import socket
 from ftplib import FTP
 
 #Third Part Module
@@ -21,6 +22,7 @@ import loadconf
 
 file_path = os.path.realpath(__file__)
 file_dir = os.path.dirname(file_path)
+socket.timeout(30)
 
 class SoftInfo():
     '''Show infomation of this software.'''
@@ -91,23 +93,43 @@ class BackupByFtp():
     
     def login(self,host,port,user,pwd):
         '''Login the ftp server.'''
+        self.logininfo_host = host
+        self.logininfo_port = port
+        self.logininfo_user = user
+        self.logininfo_pwd = pwd
+        self.relogin_count = 1
         self.f = FTP()
         self.f.set_debuglevel(0)
-        self.f.connect(host,port,30)
-        self.f.login(user,pwd)
-        
-    def server_file_list(self):
         try:
-            self.f.dir("public_html")
-            tmp_a = self.f.retrlines("LIST "+"public_html/a", callback=None)
-            if re.search("226 0 matches total",tmp_a,re.IGNORECASE):
-                print "just make a dir"
-        except Exception, e:
-            if str(e)[0:3]=="450" :
-                print "just make a dir"
+            self.f.connect(host,port,30)
+            self.f.login(user,pwd)
+            self.f.cwd("/") #go back to the root dir 
+        except socket.error, e :
+            print "\033[1;31m"+">>> FTP login time out! I'm exit!"+"\033[0m"
+            return False
+        else:
+            return True
+        
+    def relogin(self,maxrelogin="5"):
+        '''ReLogin the ftp server.'''
+        
+        #type to int
+        maxrelogin = int(float(maxrelogin))
+        
+        #check relogin times.if much than max setting,exit.
+        if self.relogin_count <= maxrelogin:
+            self.relogin_count = self.relogin_count + 1
+        else:
+            print "\033[1;31m"+">>> ReLogin too many times !I'm exit!"+"\033[0m"
+            sys.exit(1)
+        
+        #reconnect
+        self.f.connect(self.logininfo_host,self.logininfo_port,30)
+        self.f.login(self.logininfo_user,self.logininfo_pwd)
+        self.f.cwd("/") #go back to the root dir 
         
     def upload(self, lf="./", rf="./"):
-        #future:check ftp status
+        '''upload file to ftp server.'''
         
         #filename must before realpath,beacuse links.
         local_name = os.path.basename(lf)
@@ -120,8 +142,13 @@ class BackupByFtp():
             #future:check remote is a dirpath
             remote_file_name = remote+"/"+local_name
             
-            print "\033[1;32;-1m"+">>> transfering file %s" % (local)+"\033[0m"
-            self.f.storbinary("stor "+remote_file_name,open(local,"r"))
+            print "\033[01;32m"+">>> Transfering file %s" % (local)+"\033[0m"
+            try:
+                self.f.storbinary("stor "+remote_file_name,open(local,"r"))
+            except socket.error, e :
+                print "\033[01;31m"+">>> Error: Connect timeout.File %s transfer retrying... " % (local)+"\033[0m"
+                self.relogin()
+                self.upload(lf,rf)
             
         elif os.path.isdir(local):#if a dir
             for i in os.listdir(local):
@@ -130,17 +157,21 @@ class BackupByFtp():
                 if os.path.isdir(tmp_path): #if a dir ,do something
                     tmp_local = local+"/"+i
                     tmp_remote = remote+"/"+i
+                    tmp_pwd = self.f.pwd()
+                    
                     try: #test dir is exist or not;if get 405(dir not exist) or (0 matches),then create it.
-                        self.f.dir(tmp_remote)
-                        tmp_a = self.f.retrlines("LIST "+tmp_remote, callback=None)
-                        if re.search("226 0 matches total",tmp_a,re.IGNORECASE):
-                            self.f.mkd(tmp_remote)
-                            print "\033[1;32;-1m"+">>> creating dir %s" % (tmp_local)+"\033[0m"
+                        self.f.cwd(tmp_remote)
                     except Exception, e:
-                        if str(e)[0:3]=="450":
-                            self.f.mkd(tmp_remote)
-                            print "\033[1;32;-1m"+">>> creating dir %s" % (tmp_local)+"\033[0m"
-                    print "\033[1;32;-1m"+">>> transfering dir %s" % (tmp_local)+"\033[0m"
+                        if str(e)[0:3]=="550":
+                            try:
+                                self.f.mkd(tmp_remote)
+                                print "\033[1;32m"+">>> Creating dir %s" % (tmp_local)+"\033[0m"
+                            except :
+                                print "\033[1;31m"+">>> FTP create dir failed! May be 'target' in config error! I'm exit!"+"\033[0m"
+                                return False
+                    self.f.cwd(tmp_pwd)
+                    print "\033[1;32m"+">>> Transfering dir %s" % (tmp_local)+"\033[0m"
+                    
                 else:
                     tmp_local = tmp_path
                     tmp_remote = remote
@@ -233,12 +264,11 @@ class Task():
             
             for i in s: #servers list
                 if re.search("ftp",tmp["transmethod"],re.IGNORECASE):   #match ftp transmethod
-                    print "\033[1;32;-1m"+">>>>>> Running Task %s On Server %s <<<<<<" % (t,i)+"\033[0m"
+                    print "\033[1;32m"+">>>>>> Running Task %s On Server %s <<<<<<" % (t,i)+"\033[0m"
                     bf = BackupByFtp()
-                    bf.login(self.cf[i+"_host"],self.cf[i+"_port"],self.cf[i+"_username"],self.cf[i+"_password"])
-                    bf.upload(tmp["source"],tmp["target"])
-                    bf.close()
-
+                    if bf.login(self.cf[i+"_host"],self.cf[i+"_port"],self.cf[i+"_username"],self.cf[i+"_password"]):
+                        bf.upload(tmp["source"],tmp["target"])
+                        bf.close()
 
 if __name__ == '__main__':
     ShowSoftInfo = SoftInfo("SYNC","1.0.0-beta")

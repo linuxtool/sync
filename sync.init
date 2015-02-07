@@ -14,7 +14,7 @@ LANG=C
 export PATH
 export LANG
 
-PGNAME="sync-1.0.0"
+PGNAME="sync-1.0.1"
 CWD=$(pwd)
 rc=0
 
